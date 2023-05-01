@@ -120,8 +120,9 @@ end)
 ---@param num number
 ---@param decimal number
 function round(num, decimal)
-	local mult = 10^(decimal or 0)
-	return math.floor(num * mult + 0.5) / mult
+    decimal = decimal or 0
+    local mult = 10^decimal
+    return (num >= 0 and math.floor(num * mult + 0.5) or math.ceil(num * mult - 0.5)) / mult
 end
 
 do

@@ -1,66 +1,52 @@
 ---@param source number
 local function playerLoaded(source)
-	server.voice:setPlayerRadio(source, 0)
+    server.voice:setPlayerRadio(source, 0)
 end
 
 AddEventHandler('playerDropped', function()
-	if server.players[source] then
-		server.players[source] = nil
-	end
+    if server.players[source] then
+        server.players[source] = nil
+    end
 end)
 
--- es_extended
-if server.core == 'esx' then
-	AddEventHandler('esx:playerLoaded', function(source, player)
-		server.players[source] = { [player.job.name] = player.job.grade }
-		playerLoaded(source)
-	end)
+local frameworkEvents = {
+    esx = {
+        playerLoadedEvent = 'esx:playerLoaded',
+        setJobEvent = 'esx:setJob',
+        getPlayerData = function(player) return { [player.job.name] = player.job.grade } end
+    },
+    qb = {
+        playerLoadedEvent = 'QBCore:Server:PlayerLoaded',
+        setJobEvent = 'QBCore:Server:OnJobUpdate',
+        getPlayerData = function(player) return { [player.PlayerData.job.name] = player.PlayerData.job.grade.level } end
+    },
+    ox = {
+        playerLoadedEvent = 'ox:playerLoaded',
+        setJobEvent = 'ox:setGroup',
+        getPlayerData = function(player) return player.groups end
+    }
+}
 
-	AddEventHandler('esx:setJob', function(source, job)
-		server.players[source] = { [job.name] = job.grade }
-	end)
+local function setupFrameworkEvents()
+    local eventsConfig = frameworkEvents[server.core]
 
-	for _, player in pairs(server.getPlayers()) do
-		server.players[player.source] = { [player.job.name] = player.job.grade }
-	end
+    if eventsConfig then
+        AddEventHandler(eventsConfig.playerLoadedEvent, function(player)
+            local source = player.source or player
+            server.players[source] = eventsConfig.getPlayerData(player)
+            playerLoaded(source)
+        end)
 
+        AddEventHandler(eventsConfig.setJobEvent, function(source, job)
+            local jobData = server.core == 'ox' and { [job] = source } or { [job.name] = job.grade.level or job.grade }
+            server.players[source] = jobData
+        end)
 
--- qb-core
-elseif server.core == 'qb' then
-	AddEventHandler('QBCore:Server:PlayerLoaded', function(player)
-		player = player.PlayerData
-		server.players[player.source] = { [player.job.name] = player.job.grade.level }
-		playerLoaded(player.source)
-	end)
-
-	AddEventHandler('QBCore:Server:OnJobUpdate', function(source, job)
-		server.players[source] = { [job.name] = job.grade.level }
-	end)
-
-	for _, player in pairs(server.getPlayers()) do
-		player = player.PlayerData
-		server.players[player.source] = { [player.job.name] = player.job.grade.level }
-	end
-
-
--- ox_core
-elseif server.core == 'ox' then
-	local ox = exports.ox_core
-
-	AddEventHandler('ox:playerLoaded', function(source)
-		server.players[source] = ox:GetPlayer(source).groups
-		playerLoaded(source)
-	end)
-
-	AddEventHandler('ox:setGroup', function(source, group, rank)
-		if server.players[source] then
-			server.players[source][group] = rank
-		else
-			server.players[source] = { [group] = rank }
-		end
-	end)
-
-	for _, player in pairs(ox:GetPlayers()) do
-		server.players[player.source] = ox:GetPlayer(player.source).groups
-	end
+        for _, player in pairs(server.getPlayers()) do
+            local source = player.source or player.PlayerData.source
+            server.players[source] = eventsConfig.getPlayerData(player)
+        end
+    end
 end
+
+setupFrameworkEvents()
